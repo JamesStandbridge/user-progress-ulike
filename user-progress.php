@@ -45,25 +45,54 @@ class UserProgressPlugin
   function uninstall() {
 
   }
-
-  function cronstarter_activation() {
-    if( !wp_next_scheduled( 'updateUserProgress' ) ) {
-      wp_schedule_event( time(), 'daily', 'updateUserProgress' );
-    }
-  }
-
-  // and make sure it's called whenever WordPress loads
-  add_action('wp', 'cronstarter_activation');
 }
 
 if(class_exists('UserProgressPlugin')) {
   $userProgressPlugin = new UserProgressPlugin();
 }
 
+function cronstarter_activation() {
+  if( !wp_next_scheduled( 'user_progress_update' ) ) {
+    wp_schedule_event( time(), 'everyminute', 'user_progress_update' );
+  }
+}
+
+function cron_add_minute( $schedules ) {
+    $schedules['everyminute'] = array(
+	    'interval' => 60,
+	    'display' => __( 'Once Every 60s' )
+    );
+    return $schedules;
+}
 
 
-//activation
+function cronstarter_deactivate() {
+	$timestamp = wp_next_scheduled ('user_progress_update');
+	wp_unschedule_event ($timestamp, 'user_progress_update');
+}
+
+function update_user_progression() {
+  require_once plugin_dir_path(__FILE__) . "/src/ProgressionManager.php";
+  
+  $manager = new ProgressionManager();
+  $manager->updateProgressions();
+}
+
+/**
+ * FILTERS
+ */
+add_filter( 'cron_schedules', 'cron_add_minute' );
+
+/**
+ * HOOKS
+ */
+register_deactivation_hook(__FILE__, array($userProgressPlugin, 'deactivate'));
+register_deactivation_hook (__FILE__, 'cronstarter_deactivate');
+
 register_activation_hook(__FILE__, array($userProgressPlugin, 'activate'));
 
-//deactivation
-register_deactivation_hook(__FILE__, array($userProgressPlugin, 'deactivate'));
+/**
+ * ACTIONS
+ */
+add_action ('user_progress_update', 'update_user_progression');
+add_action('wp', 'cronstarter_activation');
